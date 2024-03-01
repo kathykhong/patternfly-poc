@@ -1,10 +1,24 @@
 import React from "react";
-import { LogViewer } from "@patternfly/react-log-viewer";
+import { LogViewer, LogViewerSearch } from "@patternfly/react-log-viewer";
+import ExpandIcon from "@patternfly/react-icons/dist/esm/icons/expand-icon";
+import DownloadIcon from "@patternfly/react-icons/dist/esm/icons/download-icon";
+
+import {
+  Button,
+  Toolbar,
+  ToolbarContent,
+  ToolbarItem,
+  Checkbox,
+  ToolbarGroup,
+  Tooltip,
+} from "@patternfly/react-core";
 import { useEffect, useState } from "react";
 import io from "socket.io-client";
 
 const MyLogViewer = () => {
   const [log, setLog] = useState("");
+  const [isDarkTheme, setIsDarkTheme] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   useEffect(() => {
     const socket = io("http://localhost:8080");
@@ -20,14 +34,116 @@ const MyLogViewer = () => {
       socket.disconnect();
     };
   }, []);
+
+  const onDownloadClick = () => {
+    const element = document.createElement("a");
+    const dataToDownload = [log];
+    const file = new Blob(dataToDownload, { type: "text/plain" });
+    element.href = URL.createObjectURL(file);
+    element.download = "logs.txt";
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
+  const onExpandClick = () => {
+    if (isFullScreen) {
+      requestExitFullScreen();
+    } else {
+      requestFullScreen();
+    }
+  };
+
+  const requestFullScreen = () => {
+    const element = document.querySelector("#my-log-viewer");
+    // Supports most browsers and their versions.
+    const goFullScreen =
+      element.requestFullScreen ||
+      element.webkitRequestFullScreen ||
+      element.mozRequestFullScreen ||
+      element.msRequestFullScreen;
+
+    if (goFullScreen) {
+      goFullScreen.call(element);
+      setIsFullScreen(true);
+    }
+  };
+
+  const requestExitFullScreen = () => {
+    const exitFullScreen =
+      document.exitFullscreen ||
+      document.webkitExitFullscreen ||
+      document.msExitFullscreen;
+    if (exitFullScreen) {
+      exitFullScreen.call(document);
+      setIsFullScreen(false);
+    }
+  };
+
+  const leftBar = (
+    <React.Fragment>
+      <ToolbarGroup>
+        <ToolbarItem>
+          <LogViewerSearch />
+        </ToolbarItem>
+      </ToolbarGroup>
+    </React.Fragment>
+  );
+
+  const rightBar = (
+    <React.Fragment>
+      <ToolbarGroup variant='icon-button-group'>
+        <Checkbox
+          label='Dark theme'
+          isChecked={isDarkTheme}
+          onChange={(value) => setIsDarkTheme(value)}
+          aria-label='toggle dark theme checkbox'
+          id='toggle-dark-theme'
+          name='toggle-dark-theme'
+        />
+        <ToolbarItem>
+          <Tooltip position='top' content={<div>Download</div>}>
+            <Button
+              onClick={onDownloadClick}
+              variant='plain'
+              aria-label='Download logs'>
+              <DownloadIcon />
+            </Button>
+          </Tooltip>
+        </ToolbarItem>
+        <ToolbarItem>
+          <Tooltip position='top' content={<div>Full Screen</div>}>
+            <Button
+              onClick={onExpandClick}
+              variant='plain'
+              aria-label='View log viewer in full screen'>
+              <ExpandIcon />
+            </Button>
+          </Tooltip>
+        </ToolbarItem>
+      </ToolbarGroup>
+    </React.Fragment>
+  );
+
   return (
     <LogViewer
+      id='my-log-viewer'
       hasLineNumbers
       height={1500}
       data={log}
-      theme='dark'
-      isTextWrapped={false}
-      toolbar={[]}
+      theme={isDarkTheme ? "dark" : "light"}
+      toolbar={
+        <Toolbar>
+          <ToolbarContent>
+            <ToolbarGroup align={{ default: "alignLeft" }}>
+              {leftBar}
+            </ToolbarGroup>
+            <ToolbarGroup align={{ default: "alignRight" }}>
+              {rightBar}
+            </ToolbarGroup>
+          </ToolbarContent>
+        </Toolbar>
+      }
     />
   );
 };

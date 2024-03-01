@@ -38,6 +38,7 @@ const printNewLogEntries = (socket) => {
     }
   });
 };
+
 io.on("connection", (socket) => {
   console.log("Client connected");
   console.log(socket.id);
