@@ -3,7 +3,6 @@ import { LogViewer } from "@patternfly/react-log-viewer";
 import { useEffect, useState } from "react";
 import io from "socket.io-client";
 
-
 const MyLogViewer = () => {
   const [log, setLog] = useState("");
 
@@ -25,7 +24,7 @@ const MyLogViewer = () => {
     <LogViewer
       hasLineNumbers
       height={1500}
-      data={["hello"]}
+      data={log}
       theme='dark'
       isTextWrapped={false}
       toolbar={[]}
