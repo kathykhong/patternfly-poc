@@ -12,13 +12,15 @@ import {
   ToolbarGroup,
   Tooltip,
 } from "@patternfly/react-core";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import io from "socket.io-client";
 
 const MyLogViewer = () => {
   const [log, setLog] = useState("");
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const logViewerRef = useRef(null);
+  const [currentItemCount, setCurrentItemCount] = useState(0);
 
   useEffect(() => {
     const socket = io("http://localhost:8080");
@@ -27,13 +29,18 @@ const MyLogViewer = () => {
       socket.emit("watch-log");
     });
     socket.on("new-log-entry", (log) => {
-      setLog((prevLog) => prevLog + "\n" + log);
+      const logArray = log.split("\n").filter((entry) => entry.trim() !== "");
+      console.log(logArray);
+      console.log(logArray.length);
+      setCurrentItemCount((prevCount) => prevCount + logArray.length);
+      console.log(currentItemCount);
+      setLog((prevLog) => prevLog + log);
     });
 
     return () => {
       socket.disconnect();
     };
-  }, []);
+  }, [currentItemCount]);
 
   const onDownloadClick = () => {
     const element = document.createElement("a");
@@ -128,8 +135,10 @@ const MyLogViewer = () => {
   return (
     <LogViewer
       id='my-log-viewer'
+      innerRef={logViewerRef}
+      scrollToRow={currentItemCount}
       hasLineNumbers
-      height={1500}
+      height={500}
       data={log}
       theme={isDarkTheme ? "dark" : "light"}
       toolbar={
