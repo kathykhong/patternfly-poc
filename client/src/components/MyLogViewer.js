@@ -17,9 +17,9 @@ import {
 } from "@patternfly/react-core";
 import { useEffect, useState, useRef } from "react";
 import io from "socket.io-client";
+import DropdownWithSearch from "./DropdownWithSearch";
 
 const MyLogViewer = () => {
-  const [log, setLog] = useState("");
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const logViewerRef = useRef(null);
@@ -27,46 +27,82 @@ const MyLogViewer = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [linesBehind, setLinesBehind] = React.useState(0);
   const [renderedData, setRenderedData] = useState([]);
+  const [logFileNames, setLogFileNames] = useState([]);
+  const [currLogFileName, setCurrLogFileName] = useState("");
+  const [logs, setLogs] = useState({});
+  const socketRef = useRef(null);
 
   useEffect(() => {
-    const socket = io("http://localhost:8080");
-    socket.on("connect", () => {
+    socketRef.current = io("http://localhost:8080");
+    socketRef.current.on("connect", () => {
       console.log("Connected to server");
-      socket.emit("watch-log");
     });
-    socket.on("new-log-entry", (log) => {
-      setLog((prevLog) => prevLog + log);
+    socketRef.current.on("new-log-entry", ({ fileName, log }) => {
+      setLogs((prevLogs) => ({
+        ...prevLogs,
+        [fileName]: (prevLogs[fileName] || "") + log,
+      }));
     });
 
     return () => {
-      socket.disconnect();
+      socketRef.current.disconnect();
     };
   }, []);
 
   useEffect(() => {
-    const logArray = log.split("\n").filter((entry) => entry.trim() !== "");
-    if (!isPaused && logArray.length > 0) {
-      setCurrentItemCount(logArray.length);
-      setRenderedData(log);
-      if (logViewerRef && logViewerRef.current) {
-        logViewerRef.current.scrollToBottom();
+    const currLog = logs[currLogFileName] || null;
+    if (currLog != null) {
+      const logArray = currLog
+        .split("\n")
+        .filter((entry) => entry.trim() !== "");
+      if (!isPaused && logArray.length > 0) {
+        setCurrentItemCount(logArray.length);
+        setRenderedData(currLog);
+        if (logViewerRef && logViewerRef.current) {
+          logViewerRef.current.scrollToBottom();
+        }
+      } else if (logArray.length !== currentItemCount) {
+        setLinesBehind(logArray.length - currentItemCount);
+      } else {
+        setLinesBehind(0);
       }
-    } else if (logArray.length !== currentItemCount) {
-      setLinesBehind(logArray.length - currentItemCount);
-    } else {
-      setLinesBehind(0);
     }
-  }, [isPaused, log]);
+  }, [isPaused, currLogFileName, logs]);
+
+  useEffect(() => {
+    fetchLogFiles();
+  }, []);
+
+  const fetchLogFiles = async () => {
+    try {
+      const response = await fetch("http://localhost:8080/log-file-names");
+      const data = await response.json();
+      setLogFileNames(data);
+    } catch (error) {
+      console.error("Error fetching file names:", error);
+    }
+  };
+
+  const handleOnSelectedValue = (selectedValue) => {
+    setCurrLogFileName(selectedValue);
+    socketRef.current.emit("watch-log", selectedValue);
+  };
 
   const onDownloadClick = () => {
-    const element = document.createElement("a");
-    const dataToDownload = [log];
-    const file = new Blob(dataToDownload, { type: "text/plain" });
-    element.href = URL.createObjectURL(file);
-    element.download = "logs.txt";
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+    const currentLog = logs[currLogFileName] || "";
+
+    if (currentLog) {
+      const element = document.createElement("a");
+      const dataToDownload = [currentLog];
+      const file = new Blob(dataToDownload, { type: "text/plain" });
+
+      element.href = URL.createObjectURL(file);
+      element.download = `${currLogFileName}_log.txt`;
+
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+    }
   };
 
   const onExpandClick = () => {
@@ -108,7 +144,6 @@ const MyLogViewer = () => {
     _scrollDirection,
     scrollUpdateWasRequested,
   }) => {
-    console.log(scrollUpdateWasRequested, scrollOffsetToBottom);
     if (!scrollUpdateWasRequested) {
       if (scrollOffsetToBottom > 1) {
         setIsPaused(true);
@@ -121,6 +156,12 @@ const MyLogViewer = () => {
   const leftBar = (
     <React.Fragment>
       <ToolbarGroup>
+        <ToolbarItem>
+          <DropdownWithSearch
+            fileNames={logFileNames}
+            onSelectedValue={handleOnSelectedValue}
+          />
+        </ToolbarItem>
         <ToolbarItem>
           <LogViewerSearch />
         </ToolbarItem>
